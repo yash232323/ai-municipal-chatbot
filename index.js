@@ -182,3 +182,5 @@ app.post('/whatsapp', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 AI Server running on port ${PORT}`));
+// Serverless environments ke liye app ko export karna zaroori hai
+module.exports = app;
