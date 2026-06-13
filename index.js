@@ -33,38 +33,67 @@ const TicketSchema = new mongoose.Schema({
 
 const Ticket = mongoose.model('Ticket', TicketSchema);
 
-// 4. IN-MEMORY SESSION TRACKER FOR CONVERSATION STATE
 const userSessions = {};
 
-// 5. UPGRADED BILINGUAL AI/NLP INTENT ENGINE (Supports English, Hindi, and Hinglish)
-function classifyComplaint(text) {
-  const tokens = text.toLowerCase().split(/\W+/);
-  
-  const dictionary = {
-    'Roads & Transport': ['pothole', 'road', 'street', 'सड़क', 'गड्ढा', 'रास्ता', 'sadak', 'gaddha', 'traffic'],
-    'Electricity & Power': ['light', 'power', 'electricity', 'wire', 'बिजली', 'लाइट', 'तार', 'bijli', 'current'],
-    'Water & Sewage': ['water', 'leak', 'pipe', 'drainage', 'sewage', 'पानी', 'पाइप', 'लीक', 'गटर', 'paani'],
-    'Sanitation & Garbage': ['garbage', 'trash', 'waste', 'dump', 'clean', 'कचरा', 'गंदगी', 'कूड़ा', 'kachra', 'safai']
-  };
+// 4. NEW: DEEP LEARNING SEMANTIC AI ENGINE (Zero-Shot Classification)
+// 🧠 UPGRADED: GEMINI 1.5 FLASH SEMANTIC AI ENGINE
+async function classifyComplaintWithAI(text) {
+  try {
+    console.log(`🤖 Processing text through Gemini 1.5 Flash LLM...`);
+    
+    // Crafting a strict system prompt so Gemini only returns our categories
+    const systemPrompt = `You are an automated municipal complaint classification AI. 
+Analyze the following citizen complaint and classify it into EXACTLY ONE of these categories:
+- Roads & Transport
+- Electricity & Power
+- Water & Sewage
+- Sanitation & Garbage
 
-  let bestCategory = 'General';
-  let highestScore = 0;
+Rules:
+1. Respond with ONLY the exact category name from the list above.
+2. Do NOT write any explanations, greetings, introduction, or punctuation.
+3. If the complaint does not fit any of the four specific categories, respond with exactly: General
 
-  for (const [category, keywords] of Object.entries(dictionary)) {
-    let score = 0;
-    tokens.forEach(token => {
-      if (keywords.includes(token)) score += 1;
-    });
+Citizen Complaint: "${text}"`;
 
-    if (score > highestScore) {
-      highestScore = score;
-      bestCategory = category;
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: systemPrompt }]
+          }]
+        })
+      }
+    );
+
+    const data = await response.json();
+    
+    if (data.candidates && data.candidates[0].content.parts[0].text) {
+      const aiReply = data.candidates[0].content.parts[0].text.trim();
+      console.log(`🎯 Gemini Contextual Classification Output: [${aiReply}]`);
+      
+      // Clean verification loop
+      const validCategories = ["Roads & Transport", "Electricity & Power", "Water & Sewage", "Sanitation & Garbage"];
+      for (let cat of validCategories) {
+        if (aiReply.toLowerCase().includes(cat.toLowerCase())) {
+          return cat;
+        }
+      }
     }
+    
+    return "General";
+  } catch (error) {
+    console.error("❌ Gemini LLM API connection failed, using fallback:", error);
+    return "General";
   }
-  return bestCategory;
 }
 
-// 6. Admin Panel API Endpoints
+// 5. Admin Panel API Endpoints
 app.get('/api/tickets', async (req, res) => {
   try {
     const allTickets = await Ticket.find().sort({ createdAt: -1 });
@@ -92,37 +121,36 @@ app.patch('/api/tickets/:id', async (req, res) => {
   }
 });
 
-// 7. MULTI-LINGUAL STATE SWITCHBOARD WEBHOOK
+// 6. MULTI-LINGUAL STATE SWITCHBOARD WEBHOOK
 app.post('/whatsapp', async (req, res) => {
   const incomingMsg = (req.body.Body || '').trim();
   const senderNumber = req.body.From;
   let replyMessage = '';
 
-  // STATE 1: Fresh interaction -> Push the Language Prompt Menu
   if (!userSessions[senderNumber]) {
     userSessions[senderNumber] = { step: 'SELECT_LANGUAGE' };
     replyMessage = `🏛️ Welcome to Municipal Citizen Portal / नगर सेवा पोर्टल में आपका स्वागत है।\n\n🔹 Reply *1* for English\n🔹 हिंदी के लिए *2* दबाएं`;
   } 
-  
-  // STATE 2: Capturing language input choice
   else if (userSessions[senderNumber].step === 'SELECT_LANGUAGE') {
     if (incomingMsg === '1') {
       userSessions[senderNumber].lang = 'en';
       userSessions[senderNumber].step = 'PROVIDE_COMPLAINT';
-      replyMessage = `📝 English locked in. Please type out your municipal complaint now (e.g., "The streetlights are broken").`;
+      replyMessage = `📝 English locked in. Please type out your municipal complaint now.`;
     } else if (incomingMsg === '2') {
       userSessions[senderNumber].lang = 'hi';
       userSessions[senderNumber].step = 'PROVIDE_COMPLAINT';
-      replyMessage = `📝 हिंदी भाषा सक्रिय है। कृपया अपनी शिकायत टाइप करें (जैसे: "सड़क पर कचरा पड़ा हुआ है")।`;
+      replyMessage = `📝 हिंदी भाषा सक्रिय है। कृपया अपनी शिकायत टाइप करें।`;
     } else {
       replyMessage = `⚠️ Invalid entry. Reply 1 or 2.\nअमान्य विकल्प। कृपया 1 या 2 दबाएं।`;
     }
   } 
-  
-  // STATE 3: User language is locked, now parsing raw complaint text
   else if (userSessions[senderNumber].step === 'PROVIDE_COMPLAINT') {
     const userLanguage = userSessions[senderNumber].lang;
-    const detectedCategory = classifyComplaint(incomingMsg);
+    
+    // 🧠 CRUCIAL CHANGE: Calling our modern async Semantic AI model here
+    const detectedCategory = await classifyComplaintWithAI(incomingMsg);
+    console.log(`🎯 AI Contextual Classification Output: [${detectedCategory}]`);
+    
     const generatedTicketId = 'MUN-' + Math.floor(100000 + Math.random() * 900000);
 
     try {
@@ -134,10 +162,8 @@ app.post('/whatsapp', async (req, res) => {
       });
       await newTicket.save();
 
-      // Clear session so their next message cycles back cleanly to menu selection
       delete userSessions[senderNumber];
 
-      // Formulate language-specific confirmation message
       if (userLanguage === 'hi') {
         replyMessage = `✅ धन्यवाद! आपकी [${detectedCategory}] संबंधी शिकायत दर्ज कर ली गई है।\n\n🎫 आपका टिकट नंबर है: *${generatedTicketId}*`;
       } else {
@@ -155,4 +181,4 @@ app.post('/whatsapp', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 AI Server running on port ${PORT}`));

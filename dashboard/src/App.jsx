@@ -1,111 +1,135 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import './App.css';
 
 function App() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Fetch data from backend
   const fetchTickets = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/api/tickets');
-      setTickets(response.data);
+      const res = await axios.get('http://localhost:3000/api/tickets');
+      setTickets(res.data);
       setLoading(false);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      setLoading(false);
-    }
-  };
-
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      await axios.patch(`http://localhost:3000/api/tickets/${id}`, { status: newStatus });
-      fetchTickets();
-    } catch (error) {
-      console.error("Failed to alter status:", error);
+    } catch (err) {
+      console.error("Error fetching tickets:", err);
     }
   };
 
   useEffect(() => {
     fetchTickets();
-    const interval = setInterval(fetchTickets, 10000);
+    const interval = setInterval(fetchTickets, 5000); // Live poll every 5s
     return () => clearInterval(interval);
   }, []);
 
-  return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1 style={{ borderBottom: '2px solid #333', paddingBottom: '10px' }}>
-        🏛️ Municipal Services Admin Dashboard (AI Enhanced)
-      </h1>
-      <p>System Mode: <strong style={{color: 'green'}}>Automated AI Sorting Active</strong></p>
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      await axios.patch(`http://localhost:3000/api/tickets/${id}`, { status: newStatus });
+      fetchTickets(); // Refresh state
+    } catch (err) {
+      console.error("Status update failed:", err);
+    }
+  };
 
-      {loading ? (
-        <h3>Loading incoming database records...</h3>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f2f2f2', textAlign: 'left' }}>
-              <th style={{ padding: '12px', border: '1px solid #ddd' }}>Ticket ID</th>
-              <th style={{ padding: '12px', border: '1px solid #ddd' }}>AI Department Category</th>
-              <th style={{ padding: '12px', border: '1px solid #ddd' }}>Citizen Phone</th>
-              <th style={{ padding: '12px', border: '1px solid #ddd' }}>Complaint Message</th>
-              <th style={{ padding: '12px', border: '1px solid #ddd' }}>Action / Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tickets.length === 0 ? (
-              <tr>
-                <td colSpan="5" style={{ padding: '20px', textAlign: 'center' }}>No tickets registered yet.</td>
-              </tr>
-            ) : (
-              tickets.map((ticket) => (
-                <tr key={ticket._id}>
-                  <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: 'bold', color: '#0066cc' }}>
-                    {ticket.ticketId}
-                  </td>
-                  {/* NEW COLUMN FOR DISPLAYING THE DEPICTED CATEGORY */}
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    <span style={{
-                      backgroundColor: '#e6f2ff',
-                      color: '#004085',
-                      padding: '6px 10px',
-                      borderRadius: '20px',
-                      fontSize: '13px',
-                      fontWeight: 'bold',
-                      border: '1px solid #b8daff'
-                    }}>
-                      🏷️ {ticket.category || 'General'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    {ticket.phoneNumber}
-                  </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd', italic: 'true' }}>
-                    "{ticket.messageReceived}"
-                  </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    <select 
-                      value={ticket.status} 
-                      onChange={(e) => handleStatusChange(ticket._id, e.target.value)}
-                      style={{
-                        padding: '6px',
-                        fontWeight: 'bold',
-                        borderRadius: '4px',
-                        backgroundColor: ticket.status === 'Resolved' ? '#d4edda' : ticket.status === 'In Progress' ? '#fff3cd' : '#f8d7da',
-                        color: ticket.status === 'Resolved' ? '#155724' : ticket.status === 'In Progress' ? '#856404' : '#721c24',
-                        border: '1px solid #ccc'
-                      }}
-                    >
-                      <option value="Open">🔴 Open</option>
-                      <option value="In Progress">🟡 In Progress</option>
-                      <option value="Resolved">🟢 Resolved</option>
-                    </select>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      )}
+  // Live Metrics Calculation
+  const totalTickets = tickets.length;
+  const openTickets = tickets.filter(t => t.status === 'Open').length;
+  const resolvedTickets = tickets.filter(t => t.status === 'Resolved').length;
+
+  // Category Color Map helper
+  const getCategoryClass = (cat) => {
+    switch(cat) {
+      case 'Roads & Transport': return 'badge-roads';
+      case 'Electricity & Power': return 'badge-power';
+      case 'Water & Sewage': return 'badge-water';
+      case 'Sanitation & Garbage': return 'badge-garbage';
+      default: return 'badge-general';
+    }
+  };
+
+  return (
+    <div className="dashboard-container">
+      {/* HEADER SECTION */}
+      <header className="main-header">
+        <div className="logo-section">
+          <span className="icon-pulse">🏛️</span>
+          <h1>MUNICIPAL CONTROL CENTER</h1>
+          <p>System Mode: <span className="status-glow">Gemini 1.5 Flash Active</span></p>
+        </div>
+      </header>
+
+      {/* METRICS CARDS */}
+      <div className="metrics-grid">
+        <div className="card metric-card total">
+          <h3>Total Grievances</h3>
+          <div className="metric-value">{totalTickets}</div>
+        </div>
+        <div className="card metric-card open">
+          <h3>Active Incidents</h3>
+          <div className="metric-value">{openTickets}</div>
+          <span className="pulse-dot"></span>
+        </div>
+        <div className="card metric-card resolved">
+          <h3>Resolved Pipeline</h3>
+          <div className="metric-value">{resolvedTickets}</div>
+        </div>
+      </div>
+
+      {/* RECENT STREAM DATA */}
+      <main className="content-section">
+        <div className="card table-card">
+          <div className="table-header-title">
+            <h2>Live Inbound Complaint Logs</h2>
+            <span className="live-tag">● LIVE STREAMING</span>
+          </div>
+          
+          {loading ? (
+            <div className="loader">Syncing secure pipelines...</div>
+          ) : (
+            <div className="table-responsive">
+              <table className="premium-table">
+                <thead>
+                  <tr>
+                    <th>Ticket ID</th>
+                    <th>Citizen Identity</th>
+                    <th>AI Department Routing</th>
+                    <th>Extracted Raw Complaint Text</th>
+                    <th>Operation Status / Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tickets.map((ticket) => (
+                    <tr key={ticket._id} className={ticket.status === 'Resolved' ? 'row-resolved' : ''}>
+                      <td className="ticket-id">{ticket.ticketId}</td>
+                      <td className="phone-cell">{ticket.phoneNumber.replace('whatsapp:', '')}</td>
+                      <td>
+                        <span className={`ai-badge ${getCategoryClass(ticket.category)}`}>
+                          ✨ {ticket.category}
+                        </span>
+                      </td>
+                      <td className="message-cell">
+                        <div className="msg-bubble">"{ticket.messageReceived}"</div>
+                      </td>
+                      <td>
+                        <select 
+                          className={`status-select ${ticket.status.toLowerCase()}`}
+                          value={ticket.status} 
+                          onChange={(e) => handleStatusChange(ticket._id, e.target.value)}
+                        >
+                          <option value="Open">🔴 Open / Unassigned</option>
+                          <option value="In Progress">🟡 In Progress</option>
+                          <option value="Resolved">🟢 Marked Resolved</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
