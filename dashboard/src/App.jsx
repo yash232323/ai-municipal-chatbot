@@ -8,8 +8,9 @@ function App() {
 
   // Fetch data from backend
   const fetchTickets = async () => {
-    try {
-      const res = await axios.get('http://localhost:3000/api/tickets');
+    try {// 🔄 Localhost hata kar apna Vercel backend link daalo (End mein /api/tickets rehne dena)
+const res = await axios.get('https://municipal-bot-api.vercel.app/api/tickets');
+
       setTickets(res.data);
       setLoading(false);
     } catch (err) {
@@ -25,7 +26,8 @@ function App() {
 
   const handleStatusChange = async (id, newStatus) => {
     try {
-      await axios.patch(`http://localhost:3000/api/tickets/${id}`, { status: newStatus });
+    // 🔄 Same niche waale patch request mein bhi badlo:
+await axios.patch(`https://municipal-bot-api.vercel.app/api/tickets/${id}`, { status: newStatus });
       fetchTickets(); // Refresh state
     } catch (err) {
       console.error("Status update failed:", err);
